@@ -87,10 +87,11 @@ def process_video_generation(job_id):
         print(f"[{job_id}] Generating avatar video (audio-driven, single step using OmniHuman)...")
         
         result = fal_client.subscribe(
-            "fal-ai/bytedance/omnihuman",
+            "fal-ai/bytedance/omnihuman/v1.5",
             arguments={
                 "image_url": image_url,
                 "audio_url": audio_url,
+                "resolution": "1080p",
             },
             with_logs=True,
             on_queue_update=on_queue_update,
