@@ -41,12 +41,21 @@ def process_video_generation(job_id):
         audio_filename = f"audio_{job.id}.mp3"
         audio_path = os.path.join(settings.MEDIA_ROOT, audio_filename)
         
-        async def generate_audio(text, output_path):
-            voice_id = job.voice.voice_id if (job.voice and job.voice.voice_id) else "en-US-ChristopherNeural"
-            communicate = edge_tts.Communicate(text, voice_id)
+        # Fetch voice_id synchronously outside async context
+        voice_id = "en-US-ChristopherNeural"
+        if job.voice_id:
+            try:
+                voice = job.voice
+                if voice.voice_id:
+                    voice_id = voice.voice_id
+            except Exception:
+                pass
+
+        async def generate_audio(text, output_path, v_id):
+            communicate = edge_tts.Communicate(text, v_id)
             await communicate.save(output_path)
             
-        asyncio.run(generate_audio(job.script_text, audio_path))
+        asyncio.run(generate_audio(job.script_text, audio_path, voice_id))
 
         # 2. Generate video — ONE audio-driven call, no driving video needed
         fal_key = os.environ.get("FAL_KEY")
