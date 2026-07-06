@@ -48,7 +48,7 @@ def process_video_generation(job_id):
             
         asyncio.run(generate_audio(job.script_text, audio_path))
 
-        # 2. Generate Video using Fal.ai (Open Source SadTalker/LivePortrait)
+        # 2. Generate video — ONE audio-driven call, no driving video needed
         fal_key = os.environ.get("FAL_KEY")
         
         if not fal_key:
@@ -69,49 +69,28 @@ def process_video_generation(job_id):
         image_url = fal_client.upload_file(job.avatar.preview_image.path)
         audio_url = fal_client.upload_file(audio_path)
         
-        print(f"[{job_id}] Generating high-fidelity silent video using LivePortrait...")
-        
         def on_queue_update(update):
             if isinstance(update, fal_client.InProgress):
                 for log in update.logs:
                     safe_log = log['message'].encode('ascii', 'ignore').decode('ascii')
                     print(f"[{job_id}] Fal.ai log: {safe_log}")
                     
-        # Step 1: LivePortrait (Face Puppeteering)
-        # We use a standard generic driving video of natural head movement from the official repo
-        driving_video_url = "https://raw.githubusercontent.com/KwaiVGI/LivePortrait/main/assets/examples/driving/d0.mp4"
+        print(f"[{job_id}] Generating avatar video (audio-driven, single step using OmniHuman)...")
         
-        step1_result = fal_client.subscribe(
-            "fal-ai/live-portrait",
+        result = fal_client.subscribe(
+            "fal-ai/bytedance/omnihuman",
             arguments={
                 "image_url": image_url,
-                "video_url": driving_video_url
-            },
-            with_logs=True,
-            on_queue_update=on_queue_update,
-        )
-        
-        silent_video_url = step1_result.get('video', {}).get('url')
-        if not silent_video_url:
-            raise Exception("Fal.ai LivePortrait didn't return a silent video URL.")
-            
-        print(f"[{job_id}] Step 1 complete. Now applying LipSync using Kling...")
-        
-        # Step 2: Kling LipSync
-        step2_result = fal_client.subscribe(
-            "fal-ai/kling-video/lipsync/audio-to-video",
-            arguments={
-                "video_url": silent_video_url,
                 "audio_url": audio_url,
             },
             with_logs=True,
             on_queue_update=on_queue_update,
         )
-
-        final_video_url = step2_result.get('video', {}).get('url')
+        
+        final_video_url = result.get('video', {}).get('url')
         
         if not final_video_url:
-            raise Exception("Fal.ai didn't return a video URL.")
+            raise Exception("Fal.ai OmniHuman didn't return a video URL.")
 
         job.final_video_url = final_video_url
         job.status = 'completed'
